@@ -18,17 +18,21 @@ module.exports = {
       let res = await axios.get(url);
       let data = query ? res.data.data[0] : res.data.data;
 
-      if (!data) {
-        return m.reply("❌ Anime not found!");
-      }
+      if (!data) return m.reply("❌ Anime not found!");
 
-      // ✅ FIX DESCRIPTION LENGTH (VERY IMPORTANT)
+      // ✅ SAFE IMAGE (FIX)
+      let image =
+        data.images?.jpg?.large_image_url ||
+        data.images?.jpg?.image_url ||
+        "https://i.imgur.com/1bX5QH6.jpg"; // fallback image
+
+      // ✅ LIMIT DESCRIPTION
       let desc = data.synopsis || "No description available";
       if (desc.length > 500) {
         desc = desc.substring(0, 500) + "...";
       }
 
-      // 🎨 PREMIUM STYLED MESSAGE
+      // 🎨 STYLED MESSAGE
       let caption = `
 ┏━━━━━━━━━━━━━━━━━━━⬣
 ┃ 🎴 *ANIME PROFILE*
@@ -67,13 +71,11 @@ module.exports = {
         },
       ];
 
-      // 📸 SEND WITH IMAGE + BUTTONS
+      // ✅ SEND MESSAGE (SAFE)
       await sock.sendMessage(
         m.chat,
         {
-          image: {
-            url: data.images.jpg.large_image_url,
-          },
+          image: { url: image },
           caption: caption,
           buttons: buttons,
           headerType: 4,
@@ -82,8 +84,10 @@ module.exports = {
       );
 
     } catch (err) {
-      console.log(err);
-      m.reply("❌ Failed to fetch anime.");
+      console.log("ANIME ERROR:", err);
+
+      // 🔥 IMPORTANT: show error instead of silent fail
+      await m.reply("❌ Anime command error. Check logs.");
     }
   },
 };
