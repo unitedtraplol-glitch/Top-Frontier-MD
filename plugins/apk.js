@@ -13,6 +13,7 @@ async (conn, mek, m, { from, q, reply }) => {
     try {
         if (!q) return reply("❌ Enter app name\nExample: .apk whatsapp");
 
+        // fetch API
         let res = await fetch(`https://eliteprotech-apis.zone.id/apk?q=${encodeURIComponent(q)}`);
         let data = await res.json();
 
@@ -28,17 +29,25 @@ async (conn, mek, m, { from, q, reply }) => {
         let developer = app.developer.name;
         let link = app.file.path;
 
-        let caption = `📱 *APK DOWNLOADER*
+        // styled caption
+        let caption = `╭━━━〔 📱 APK DOWNLOADER 〕━━━⬣
 
 📛 Name: ${name}
 📦 Version: ${version}
 📁 Size: ${size}
 👨‍💻 Developer: ${developer}
 
-⬇️ Sending APK...`;
+⬇️ Sending APK...
 
-        // send info first
-        await conn.sendMessage(from, { text: caption }, { quoted: mek });
+╰━━━〔 ⚡ Frontier MD 〕━━━⬣
+
+powered by 𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-tech`;
+
+        // send image preview + caption
+        await conn.sendMessage(from, {
+            image: { url: app.graphic || app.icon },
+            caption: caption
+        }, { quoted: mek });
 
         // send APK file
         await conn.sendMessage(from, {
