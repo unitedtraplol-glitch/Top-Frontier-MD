@@ -1,45 +1,35 @@
-import axios from "axios";
+const axios = require("axios");
+const { cmd } = require("../command");
 
-export default {
-  name: "neko",
-  alias: ["catgirl"],
-  desc: "Get random SFW neko images 🐱",
-  category: "fun",
-  async execute(sock, m, args) {
+cmd({
+    pattern: "neko",
+    alias: ["catgirl"],
+    desc: "Random neko image 🐱",
+    category: "fun",
+    react: "🐱",
+    filename: __filename
+},
+async (conn, mek, m, { from, reply }) => {
     try {
-      // API request
-      const res = await axios.get("https://api.giftedtech.co.ke/api/anime/neko?apikey=gifted");
+        const res = await axios.get("https://api.giftedtech.co.ke/api/anime/neko?apikey=gifted");
+        const image = res.data.result;
 
-      const imageUrl = res.data.result;
-
-      // Styled caption
-      const caption = `╭━━━〔 🐱 NEKO IMAGE 〕━━━⬣
+        const caption = `╭━━━〔 🐱 NEKO IMAGE 〕━━━⬣
 
 ✨ Here's your random neko!
 
-💖 Enjoy ~
+💖 Enjoy the vibes~
 
 ╰━━━〔 ⚡ Frontier MD 〕━━━⬣
 powered by 𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-tech`;
 
-      // Send image
-      await sock.sendMessage(
-        m.key.remoteJid,
-        {
-          image: { url: imageUrl },
-          caption: caption
-        },
-        { quoted: m }
-      );
+        await conn.sendMessage(from, {
+            image: { url: image },
+            caption: caption
+        }, { quoted: mek });
 
-    } catch (err) {
-      console.log(err);
-
-      await sock.sendMessage(
-        m.key.remoteJid,
-        { text: "❌ Failed to fetch neko image. Try again later." },
-        { quoted: m }
-      );
+    } catch (e) {
+        console.log(e);
+        reply("❌ Failed to fetch neko image.");
     }
-  }
-};
+});
