@@ -1,71 +1,89 @@
 const axios = require("axios");
-const { cmd } = require("../command");
 
-cmd({
-    pattern: "anime",
-    alias: ["ani"],
-    desc: "Get anime info 🎴",
-    category: "fun",
-    react: "🎴",
-    filename: __filename
-},
-async (conn, mek, m, { from, args, reply }) => {
+module.exports = {
+  name: "anime",
+  alias: ["ani"],
+  desc: "Get anime info",
+  category: "anime",
+  react: "🎴",
+
+  async execute(sock, m, args) {
     try {
-        let data;
+      let query = args.join(" ");
 
-        // 🔍 SEARCH
-        if (args.length > 0) {
-            const query = args.join(" ");
-            const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=1`);
-            data = res.data.data[0];
+      let url = query
+        ? `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=1`
+        : `https://api.jikan.moe/v4/random/anime`;
 
-            if (!data) return reply("❌ Anime not found.");
+      let res = await axios.get(url);
+      let data = query ? res.data.data[0] : res.data.data;
 
-        } else {
-            // 🎲 RANDOM
-            const res = await axios.get("https://api.jikan.moe/v4/random/anime");
-            data = res.data.data;
-        }
+      if (!data) {
+        return m.reply("❌ Anime not found!");
+      }
 
-        // ✅ SAFE FALLBACKS
-        const title = data.title || "Unknown";
-        const type = data.type || "N/A";
-        const episodes = data.episodes || "N/A";
-        const rating = data.score || "N/A";
-        const status = data.status || "Unknown";
-        const synopsis = data.synopsis
-            ? data.synopsis.substring(0, 200) + "..."
-            : "No description available.";
+      // ✅ FIX DESCRIPTION LENGTH (VERY IMPORTANT)
+      let desc = data.synopsis || "No description available";
+      if (desc.length > 500) {
+        desc = desc.substring(0, 500) + "...";
+      }
 
-        const image =
-            data.images?.jpg?.image_url ||
-            "https://i.imgur.com/6M513yH.png"; // fallback image
+      // 🎨 PREMIUM STYLED MESSAGE
+      let caption = `
+┏━━━━━━━━━━━━━━━━━━━⬣
+┃ 🎴 *ANIME PROFILE*
+┗━━━━━━━━━━━━━━━━━━━⬣
 
-        const url = data.url || "";
+┃ 📛 *Title:* ${data.title}
+┃ 🎬 *Type:* ${data.type}
+┃ 📺 *Episodes:* ${data.episodes || "N/A"}
+┃ ⭐ *Rating:* ${data.score || "N/A"}
+┃ 📡 *Status:* ${data.status}
 
-        const caption = `╭━━━〔 🎴 ANIME INFO 〕━━━⬣
+┣━━━━━━━━━━━━━━━━━━━⬣
+┃ 📖 *Synopsis*
+┃ ${desc}
 
-📛 *Title:* ${title}
-🎬 *Type:* ${type}
-📺 *Episodes:* ${episodes}
-📊 *Rating:* ${rating}
-📡 *Status:* ${status}
+┣━━━━━━━━━━━━━━━━━━━⬣
+┃ 🔗 *More Info:*
+┃ ${data.url}
 
-📖 *Story:* ${synopsis}
+┗━━━━━━━━━━━━━━━━━━━⬣
+⚡ *Frontier MD*
+╰─➤ powered by 𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-tech
+`;
 
-🔗 More Info: ${url}
+      // 🔘 BUTTONS
+      const buttons = [
+        {
+          buttonId: `.anime`,
+          buttonText: { displayText: "🎲 Random" },
+          type: 1,
+        },
+        {
+          buttonId: `.anime naruto`,
+          buttonText: { displayText: "🔍 Naruto" },
+          type: 1,
+        },
+      ];
 
-╰━━━〔 ⚡ Frontier MD 〕━━━⬣
-powered by 𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-tech`;
+      // 📸 SEND WITH IMAGE + BUTTONS
+      await sock.sendMessage(
+        m.chat,
+        {
+          image: {
+            url: data.images.jpg.large_image_url,
+          },
+          caption: caption,
+          buttons: buttons,
+          headerType: 4,
+        },
+        { quoted: m }
+      );
 
-        // ✅ SEND MESSAGE (NO BUTTONS FIRST)
-        await conn.sendMessage(from, {
-            image: { url: image },
-            caption: caption
-        }, { quoted: mek });
-
-    } catch (e) {
-        console.log("ANIME ERROR:", e); // 👈 IMPORTANT
-        reply("❌ Anime command failed. Try again.");
+    } catch (err) {
+      console.log(err);
+      m.reply("❌ Failed to fetch anime.");
     }
-});
+  },
+};
