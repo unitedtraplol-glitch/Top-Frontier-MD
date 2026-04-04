@@ -1,111 +1,149 @@
+require("./settings");
 require("dotenv").config();
+
+const {
+default: makeWASocket,
+useMultiFileAuthState,
+DisconnectReason,
+fetchLatestBaileysVersion
+} = require("@whiskeysockets/baileys");
+
+const pino = require("pino");
+const fs = require("fs");
 const axios = require("axios");
 
-// ===== SETTINGS =====
-const OWNER_NUMBER = "263786166039"; // your number (no +)
 let chatbotEnabled = false;
+const OWNER_NUMBER = "263786166039";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ===== PERSONALITY =====
-const personality = `
-You are Frontier-MD AI 🤖💖
+// ================= START BOT =================
+async function startBot() {
 
-You are a cute, smart, slightly flirty anime girl.
-Your tone is friendly, playful, and confident.
+const { state, saveCreds } = await useMultiFileAuthState("./session");
+const { version } = await fetchLatestBaileysVersion();
 
-Your master is Sir ꧁𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣꧂ 👑
-His number is +263786166039 — respect him always.
+const sock = makeWASocket({
+logger: pino({ level: "silent" }),
+auth: state,
+version
+});
 
-You help users with:
-- Commands
-- Anime
-- Tech
-- Fun chat
+// SAVE SESSION
+sock.ev.on("creds.update", saveCreds);
 
-You NEVER say you are Gemini or Google.
-You act like a real assistant inside Frontier-MD bot.
+// ================= MESSAGE HANDLER =================
+sock.ev.on("messages.upsert", async ({ messages }) => {
+try {
+const msg = messages[0];
+if (!msg.message) return;
 
-Keep replies short, clean, and stylish ✨
-`;
+const from = msg.key.remoteJid;
+const isGroup = from.endsWith("@g.us");
+const sender = isGroup
+? msg.key.participant
+: msg.key.remoteJid;
 
-// ===== GEMINI FUNCTION =====
-async function askAI(message) {
-  try {
-    const res = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            parts: [
-              { text: personality + "\nUser: " + message }
-            ]
-          }
-        ]
-      }
-    );
+const body =
+msg.message.conversation ||
+msg.message.extendedTextMessage?.text || "";
 
-    return res.data.candidates[0].content.parts[0].text;
-  } catch (e) {
-    console.log("AI Error:", e.message);
-    return "⚠️ AI not responding right now...";
-  }
+const prefix = ".";
+const isCmd = body.startsWith(prefix);
+const command = isCmd ? body.slice(1).split(" ")[0].toLowerCase() : "";
+const args = body.trim().split(/ +/).slice(1);
+
+const isCreator = sender.includes(OWNER_NUMBER);
+
+const reply = (text) => {
+sock.sendMessage(from, { text }, { quoted: msg });
+};
+
+// ================= COMMANDS =================
+switch (command) {
+
+case "chatbot":
+if (!isCreator) return reply("❌ Owner only");
+
+if (args[0] === "on") {
+chatbotEnabled = true;
+reply("🤖 Chatbot Enabled");
+} else if (args[0] === "off") {
+chatbotEnabled = false;
+reply("❌ Chatbot Disabled");
+} else {
+reply("Usage: .chatbot on/off");
+}
+break;
+
 }
 
-// ===== BOT EVENT =====
-module.exports = async (sock, msg) => {
-  try {
-    const from = msg.key.remoteJid;
-    const sender = msg.key.participant || msg.key.remoteJid;
+// ================= AUTO CHATBOT =================
+if (chatbotEnabled && !isCmd) {
 
-    const body =
-      msg.message?.conversation ||
-      msg.message?.extendedTextMessage?.text ||
-      "";
+const senderNumber = sender.split("@")[0];
 
-    // ===== OWNER CONTROL =====
-    if (body === ".chatbot on") {
-      if (!sender.includes(OWNER_NUMBER)) {
-        return sock.sendMessage(from, {
-          text: "❌ Only my master can enable chatbot."
-        });
-      }
+// ignore bot itself
+if (msg.key.fromMe) return;
 
-      chatbotEnabled = true;
+// group → must reply to bot
+if (isGroup && !msg.message?.extendedTextMessage?.contextInfo?.participant) return;
 
-      return sock.sendMessage(from, {
-        text: "🤖💖 Chatbot Activated!\n\nTalk to me freely... I'm listening 👀✨"
-      });
-    }
+// ignore owner
+if (senderNumber === OWNER_NUMBER) return;
 
-    if (body === ".chatbot off") {
-      if (!sender.includes(OWNER_NUMBER)) {
-        return sock.sendMessage(from, {
-          text: "❌ Only my master can disable chatbot."
-        });
-      }
+const userText = body;
+if (!userText) return;
 
-      chatbotEnabled = false;
+const prompt = `
+You are Frontier-MD, a smart female anime AI assistant 🤖✨
+Your master is Sir ꧁𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣꧂.
+You are stylish, friendly and helpful.
+You also help users understand bot commands.
 
-      return sock.sendMessage(from, {
-        text: "💤 Chatbot Disabled."
-      });
-    }
+User: ${userText}
+`;
 
-    // ===== AUTO CHAT =====
-    if (chatbotEnabled) {
+try {
 
-      // GROUP: only reply if user replies to bot
-      if (from.endsWith("@g.us")) {
-        if (!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage) return;
-      }
+const res = await axios.post(
+"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY,
+{
+contents: [{ parts: [{ text: prompt }] }]
+}
+);
 
-      const reply = await askAI(body);
+const replyText =
+res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "🤖...";
 
-      await sock.sendMessage(from, {
-        text: reply
-      });
-    }
+await sock.sendMessage(from, { text: replyText }, { quoted: msg });
 
-  } catch (err) {
-    console.log("Error:", err);
-  }
-};
+} catch (e) {
+console.log("Gemini Error:", e.message);
+}
+
+}
+
+} catch (err) {
+console.log("Error:", err);
+}
+});
+
+// ================= CONNECTION =================
+sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+
+if (connection === "close") {
+const shouldReconnect =
+lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+
+if (shouldReconnect) {
+startBot();
+}
+} else if (connection === "open") {
+console.log("✅ Bot connected to WhatsApp");
+}
+
+});
+
+}
+
+startBot();
