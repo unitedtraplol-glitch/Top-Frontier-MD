@@ -1,32 +1,37 @@
-let handler = async (m, { conn, text }) => {
-    if (!text) {
-        return m.reply('⚠️ Send a Facebook link\nExample:\n.fb https://facebook.com/...')
-    }
+const axios = require("axios");
+const { cmd } = require("../command");
 
+cmd({
+    pattern: "fb",
+    desc: "Download Facebook videos",
+    category: "download",
+    react: "🎬",
+    filename: __filename
+},
+async (conn, mek, m, { from, q, reply }) => {
     try {
-        let api = `https://api.giftedtech.co.ke/api/download/facebook?apikey=gifted&url=${encodeURIComponent(text)}`
+        if (!q) {
+            return reply("⚠️ Send a Facebook link\nExample:\n.fb https://facebook.com/...")
+        }
+
+        const api = `https://api.giftedtech.co.ke/api/download/facebook?apikey=gifted&url=${encodeURIComponent(q)}`
         
-        let res = await fetch(api)
-        let data = await res.json()
+        const res = await axios.get(api)
+        const data = res.data
 
         if (!data.status) {
-            return m.reply('❌ Failed to fetch video')
+            return reply("❌ Failed to fetch video")
         }
 
-        let videoUrl = data.result.video
+        const videoUrl = data.result.video
 
         if (!videoUrl) {
-            return m.reply('❌ No video found')
+            return reply("❌ No video found")
         }
 
-        let shortLink = text.length > 40 ? text.slice(0, 40) + '...' : text
+        const shortLink = q.length > 40 ? q.slice(0, 40) + '...' : q
 
-        // ✅ USING YOUR BOT STYLE
-        await conn.sendFile(
-            m.chat,
-            videoUrl,
-            'fb.mp4',
-            `╭━━━〔 ⚡ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚡ 〕━━━⬣
+        const caption = `╭━━━〔 ⚡ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚡ 〕━━━⬣
 ┃ 🎬 FACEBOOK VIDEO ACQUIRED
 ┃━━━━━━━━━━━━━━━━━━━⬣
 ┃ 🔗 ${shortLink}
@@ -37,16 +42,15 @@ let handler = async (m, { conn, text }) => {
 ┃ ⚡ System: ONLINE
 ╰━━━━━━━━━━━━━━━━━━━⬣
 
-🖤 _Onichan~ your video is ready..._ ✨`,
-            m
-        )
+🖤 _Onichan~ your video is ready..._ ✨`
+
+        await conn.sendMessage(from, {
+            video: { url: videoUrl },
+            caption: caption
+        }, { quoted: mek })
 
     } catch (e) {
         console.log(e)
-        m.reply('❌ Error downloading video')
+        reply("❌ Error downloading video")
     }
-}
-
-handler.command = ['fb']
-
-module.exports = handler
+});
