@@ -47,7 +47,7 @@ OWNER_NAME: process.env.OWNER_NAME || "*Sir Frontier*",
 // add bot owner name
 DESCRIPTION: process.env.DESCRIPTION || "*© ᴘᴏᴡᴇʀᴇᴅ ʙʏ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣 Official 💫*",
 // add bot owner name    
-ALIVE_IMG: process.env.ALIVE_IMG || "https://files.catbox.moe/2acon5.jpeg",
+ALIVE_IMG: process.env.ALIVE_IMG || "https://files.catbox.moe/ggcgdm.jpeg",
 // add img for alive msg
 LIVE_MSG: process.env.LIVE_MSG || "> Hey there Buddy im still alive it would seem 🫩",
 // add alive msg here 
