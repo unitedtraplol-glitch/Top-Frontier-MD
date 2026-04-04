@@ -27,11 +27,11 @@ ANTI_LINK: process.env.ANTI_LINK || "true",
 // make anti link true,false for groups 
 MENTION_REPLY: process.env.MENTION_REPLY || "false",
 // make true if want auto voice reply if someone menetion you 
-MENU_IMAGE_URL: process.env.MENU_IMAGE_URL || "https://files.catbox.moe/2acon5.jpeg",
+MENU_IMAGE_URL: process.env.MENU_IMAGE_URL || "https://files.catbox.moe/asboiz.jpeg",
 // add custom menu and mention reply image url
 PREFIX: process.env.PREFIX || ".",
 // add your prifix for bot   
-BOT_NAME: process.env.BOT_NAME || "Your-Own-Bot",
+BOT_NAME: process.env.BOT_NAME || "𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-MD",
 // add bot namw here for menu
 STICKER_NAME: process.env.STICKER_NAME || "𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣-MD",
 // type sticker pack name 
