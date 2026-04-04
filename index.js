@@ -25,12 +25,10 @@ app.listen(PORT, () => console.log("🌐 Server running on port " + PORT));
 let chatbotEnabled = false;
 const OWNER_NUMBER = "263786166039";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-// 🔐 SESSION ID FROM ENV
 const SESSION_ID = process.env.SESSION_ID;
 
 if (!SESSION_ID) {
-  console.log("❌ SESSION_ID not found in env!");
+  console.log("❌ SESSION_ID not found!");
   process.exit(1);
 }
 
@@ -39,11 +37,31 @@ async function startBot() {
 
   const { version } = await fetchLatestBaileysVersion();
 
-  // 🔑 DECODE SESSION
-  const authInfo = JSON.parse(
-    Buffer.from(SESSION_ID, "base64").toString("utf-8"),
-    BufferJSON.reviver
-  );
+  // 🔥 CLEAN + SUPPORT ALL SESSION TYPES
+  let cleanedSession = SESSION_ID;
+
+  // remove prefix (ARSLAN-MD~ or anything~)
+  if (cleanedSession.includes("~")) {
+    cleanedSession = cleanedSession.split("~")[1];
+  }
+
+  let authInfo;
+
+  try {
+    // try base64 decode
+    authInfo = JSON.parse(
+      Buffer.from(cleanedSession, "base64").toString("utf-8"),
+      BufferJSON.reviver
+    );
+  } catch {
+    try {
+      // fallback raw JSON
+      authInfo = JSON.parse(cleanedSession, BufferJSON.reviver);
+    } catch (err) {
+      console.log("❌ Invalid SESSION_ID format");
+      process.exit(1);
+    }
+  }
 
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
@@ -165,11 +183,11 @@ User: ${body}
         console.log("🔄 Reconnecting...");
         startBot();
       } else {
-        console.log("❌ Invalid SESSION_ID or logged out.");
+        console.log("❌ Session expired or invalid");
       }
 
     } else if (connection === "open") {
-      console.log("✅ Bot connected using SESSION_ID");
+      console.log("✅ Bot connected successfully");
     }
 
   });
