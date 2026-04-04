@@ -14,39 +14,46 @@ async (conn, mek, m, { from, q, reply }) => {
             return reply("⚠️ Send a Facebook link\nExample:\n.fb https://facebook.com/...")
         }
 
-        // ✅ CLEAN PARAM STYLE
         const res = await axios.get(
-            "https://meta.davidxtech.de/api/facebook/download",
+            "https://api.giftedtech.co.ke/api/download/facebookv3",
             {
-                params: { url: q }
+                params: {
+                    apikey: "gifted",
+                    url: q
+                }
             }
         );
 
         const data = res.data;
 
-        console.log(data); // 👈 helps debug
+        console.log(data); // 🔍 keep this for debugging
 
-        if (!data || !data.result) {
+        if (!data || !data.status) {
             return reply("❌ Failed to fetch video")
         }
 
-        // ⚠️ API might return different keys
+        // ✅ Flexible extraction (API may change keys)
         const videoUrl =
-            data.result.hd ||
-            data.result.sd ||
-            data.result.video ||
-            data.result.url;
+            data.result?.hd ||
+            data.result?.sd ||
+            data.result?.video ||
+            data.result?.url;
 
         if (!videoUrl) {
             return reply("❌ No video found")
         }
 
+        const shortLink = q.length > 40 ? q.slice(0, 40) + '...' : q;
+
         const caption = `╭━━━〔 ⚡ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚡ 〕━━━⬣
-┃ 🎬 FACEBOOK VIDEO DOWNLOADED
+┃ 🎬 FACEBOOK VIDEO ACQUIRED
 ┃━━━━━━━━━━━━━━━━━━━⬣
-┃ 🔗 ${q.length > 40 ? q.slice(0, 40) + '...' : q}
+┃ 🔗 ${shortLink}
 ┃
 ┃ 📡 Status: SUCCESS ✅
+┃ ⚙️ Source: FB V3 API
+┃
+┃ ⚡ System: ONLINE
 ╰━━━━━━━━━━━━━━━━━━━⬣
 
 🖤 _Onichan~ your video is ready..._ ✨`;
