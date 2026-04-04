@@ -8,19 +8,18 @@ const {
 } = require("@whiskeysockets/baileys");
 
 const pino = require("pino");
-const fs = require("fs");
 const axios = require("axios");
-
-// ✅ KEEP RENDER ALIVE (FIX PORT ERROR)
 const express = require("express");
+
 const app = express();
 
+// ================= KEEP RENDER ALIVE =================
 app.get("/", (req, res) => {
   res.send("Frontier-MD Bot is running ✅");
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(PORT, () => console.log("🌐 Server running on port " + PORT));
 
 // ================= SETTINGS =================
 let chatbotEnabled = false;
@@ -30,16 +29,17 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // ================= START BOT =================
 async function startBot() {
 
-  const { state, saveCreds } = await useMultiFileAuthState("./sessions"); // ✅ FIXED
+  const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
-    logger: pino({ level: "silent" }),
+    logger: pino({ level: "silent" }), // 🔇 change to "info" if debugging
     auth: state,
-    version
+    version,
+    printQRInTerminal: true // ✅ helps login easier
   });
 
-  // SAVE SESSION
+  // ================= SAVE SESSION =================
   sock.ev.on("creds.update", saveCreds);
 
   // ================= MESSAGE HANDLER =================
@@ -50,42 +50,51 @@ async function startBot() {
 
       const from = msg.key.remoteJid;
       const isGroup = from.endsWith("@g.us");
+
       const sender = isGroup
         ? msg.key.participant
         : msg.key.remoteJid;
 
       const body =
         msg.message.conversation ||
-        msg.message.extendedTextMessage?.text || "";
+        msg.message.extendedTextMessage?.text ||
+        "";
+
+      if (!body) return;
 
       const prefix = ".";
       const isCmd = body.startsWith(prefix);
-      const command = isCmd ? body.slice(1).split(" ")[0].toLowerCase() : "";
+
+      const command = isCmd
+        ? body.slice(1).split(" ")[0].toLowerCase()
+        : "";
+
       const args = body.trim().split(/ +/).slice(1);
 
       const isCreator = sender.includes(OWNER_NUMBER);
 
-      const reply = (text) => {
+      const reply = (text) =>
         sock.sendMessage(from, { text }, { quoted: msg });
-      };
 
       // ================= COMMANDS =================
-      switch (command) {
+      if (isCmd) {
+        switch (command) {
 
-        case "chatbot":
-          if (!isCreator) return reply("❌ Owner only");
+          case "chatbot":
+            if (!isCreator) return reply("❌ Owner only");
 
-          if (args[0] === "on") {
-            chatbotEnabled = true;
-            reply("🤖 Chatbot Enabled");
-          } else if (args[0] === "off") {
-            chatbotEnabled = false;
-            reply("❌ Chatbot Disabled");
-          } else {
-            reply("Usage: .chatbot on/off");
-          }
-          break;
+            if (args[0] === "on") {
+              chatbotEnabled = true;
+              return reply("🤖 Chatbot Enabled");
+            }
 
+            if (args[0] === "off") {
+              chatbotEnabled = false;
+              return reply("❌ Chatbot Disabled");
+            }
+
+            return reply("Usage: .chatbot on/off");
+        }
       }
 
       // ================= AUTO CHATBOT =================
@@ -93,48 +102,45 @@ async function startBot() {
 
         if (msg.key.fromMe) return;
 
-        // group must reply to bot
+        // 📌 Group logic → only reply if user replies to bot
         if (isGroup) {
           const context = msg.message?.extendedTextMessage?.contextInfo;
-          if (!context || !context.participant) return;
+          if (!context?.participant) return;
         }
 
         const senderNumber = sender.split("@")[0];
         if (senderNumber === OWNER_NUMBER) return;
 
-        const userText = body;
-        if (!userText) return;
-
         const prompt = `
 You are Frontier-MD, a smart female anime AI assistant 🤖✨
 Your master is Sir ꧁𝕗𝕽𝕠𝕟𝕥𝕚𝕖𝕣꧂.
-You are stylish, friendly, a bit playful, and very helpful.
-You guide users on how to use bot commands.
+You are stylish, friendly, playful, and helpful.
+Guide users on bot commands when needed.
 
-User: ${userText}
+User: ${body}
 `;
 
         try {
           const res = await axios.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
             {
               contents: [{ parts: [{ text: prompt }] }]
             }
           );
 
           const replyText =
-            res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "🤖...";
+            res.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+            "🤖 I didn't understand that.";
 
           await sock.sendMessage(from, { text: replyText }, { quoted: msg });
 
         } catch (e) {
-          console.log("Gemini Error:", e.message);
+          console.log("❌ Gemini Error:", e.response?.data || e.message);
         }
-
       }
 
     } catch (err) {
-      console.log("Error:", err);
+      console.log("❌ Message Error:", err);
     }
   });
 
@@ -145,10 +151,15 @@ User: ${userText}
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
 
+      console.log("⚠️ Connection closed");
+
       if (shouldReconnect) {
         console.log("🔄 Reconnecting...");
         startBot();
+      } else {
+        console.log("❌ Logged out. Delete session & restart.");
       }
+
     } else if (connection === "open") {
       console.log("✅ Bot connected to WhatsApp");
     }
@@ -157,4 +168,5 @@ User: ${userText}
 
 }
 
+// ================= START =================
 startBot();
