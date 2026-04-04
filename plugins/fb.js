@@ -14,43 +14,50 @@ async (conn, mek, m, { from, q, reply }) => {
             return reply("⚠️ Send a Facebook link\nExample:\n.fb https://facebook.com/...")
         }
 
-        const api = `https://api.giftedtech.co.ke/api/download/facebook?apikey=gifted&url=${encodeURIComponent(q)}`
-        
-        const res = await axios.get(api)
-        const data = res.data
+        // ✅ CLEAN PARAM STYLE
+        const res = await axios.get(
+            "https://meta.davidxtech.de/api/facebook/download",
+            {
+                params: { url: q }
+            }
+        );
 
-        if (!data.status) {
+        const data = res.data;
+
+        console.log(data); // 👈 helps debug
+
+        if (!data || !data.result) {
             return reply("❌ Failed to fetch video")
         }
 
-        const videoUrl = data.result.video
+        // ⚠️ API might return different keys
+        const videoUrl =
+            data.result.hd ||
+            data.result.sd ||
+            data.result.video ||
+            data.result.url;
 
         if (!videoUrl) {
             return reply("❌ No video found")
         }
 
-        const shortLink = q.length > 40 ? q.slice(0, 40) + '...' : q
-
         const caption = `╭━━━〔 ⚡ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚡ 〕━━━⬣
-┃ 🎬 FACEBOOK VIDEO ACQUIRED
+┃ 🎬 FACEBOOK VIDEO DOWNLOADED
 ┃━━━━━━━━━━━━━━━━━━━⬣
-┃ 🔗 ${shortLink}
+┃ 🔗 ${q.length > 40 ? q.slice(0, 40) + '...' : q}
 ┃
 ┃ 📡 Status: SUCCESS ✅
-┃ ⚙️ Quality: AUTO
-┃
-┃ ⚡ System: ONLINE
 ╰━━━━━━━━━━━━━━━━━━━⬣
 
-🖤 _Onichan~ your video is ready..._ ✨`
+🖤 _Onichan~ your video is ready..._ ✨`;
 
         await conn.sendMessage(from, {
             video: { url: videoUrl },
-            caption: caption
-        }, { quoted: mek })
+            caption
+        }, { quoted: mek });
 
     } catch (e) {
-        console.log(e)
-        reply("❌ Error downloading video")
+        console.log(e);
+        reply("❌ Error downloading video");
     }
 });
