@@ -71,7 +71,7 @@ cmd({
             try {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay after image
                 await conn.sendMessage(from, {
-                    audio: { url: 'https://files.catbox.moe/gvotx7.ogg' },
+                    audio: { url: 'https://files.catbox.moe/2kz5a4.mpga' },
                     mimetype: 'audio/ogg; codecs=opus',
                     ptt: true,
                 }, { quoted: mek });
