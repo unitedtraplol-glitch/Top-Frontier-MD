@@ -2,9 +2,9 @@ require("dotenv").config();
 
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  BufferJSON
 } = require("@whiskeysockets/baileys");
 
 const pino = require("pino");
@@ -26,21 +26,30 @@ let chatbotEnabled = false;
 const OWNER_NUMBER = "263786166039";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// 🔐 SESSION ID FROM ENV
+const SESSION_ID = process.env.SESSION_ID;
+
+if (!SESSION_ID) {
+  console.log("❌ SESSION_ID not found in env!");
+  process.exit(1);
+}
+
 // ================= START BOT =================
 async function startBot() {
 
-  const { state, saveCreds } = await useMultiFileAuthState("./sessions");
   const { version } = await fetchLatestBaileysVersion();
 
-  const sock = makeWASocket({
-    logger: pino({ level: "silent" }), // 🔇 change to "info" if debugging
-    auth: state,
-    version,
-    printQRInTerminal: true // ✅ helps login easier
-  });
+  // 🔑 DECODE SESSION
+  const authInfo = JSON.parse(
+    Buffer.from(SESSION_ID, "base64").toString("utf-8"),
+    BufferJSON.reviver
+  );
 
-  // ================= SAVE SESSION =================
-  sock.ev.on("creds.update", saveCreds);
+  const sock = makeWASocket({
+    logger: pino({ level: "silent" }),
+    auth: authInfo,
+    version
+  });
 
   // ================= MESSAGE HANDLER =================
   sock.ev.on("messages.upsert", async ({ messages }) => {
@@ -102,7 +111,6 @@ async function startBot() {
 
         if (msg.key.fromMe) return;
 
-        // 📌 Group logic → only reply if user replies to bot
         if (isGroup) {
           const context = msg.message?.extendedTextMessage?.contextInfo;
           if (!context?.participant) return;
@@ -157,11 +165,11 @@ User: ${body}
         console.log("🔄 Reconnecting...");
         startBot();
       } else {
-        console.log("❌ Logged out. Delete session & restart.");
+        console.log("❌ Invalid SESSION_ID or logged out.");
       }
 
     } else if (connection === "open") {
-      console.log("✅ Bot connected to WhatsApp");
+      console.log("✅ Bot connected using SESSION_ID");
     }
 
   });
