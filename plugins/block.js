@@ -1,41 +1,83 @@
-const { cmd } = require("../command");
+const { mxd } = require("../command");
 
-cmd({
-    pattern: "unblock",
-    desc: "Unblock a user",
+mxd(
+  {
+    pattern: "block",
+    aliases: ["blockuser"],
+    react: "🚫",
     category: "owner",
-    react: "✅",
-    filename: __filename
-},
-async (conn, mek, m, { from, q, reply, isOwner }) => {
-    try {
-        if (!isOwner) return reply("❌ Owner only command");
+    description: "Block a user. Reply or provide number",
+  },
+  async (from, mek, conText) => {
+    const {
+      reply,
+      react,
+      isSuperUser,
+      quotedUser,
+      args,
+      mentionedJid,
+      superUser,
+    } = conText;
 
-        let user;
+    const { isJidGroup } = require("mrxd-baileys");
+    const { convertLidToJid } = require("../king/connection/serializer");
 
-        if (mek.quoted) {
-            user = mek.quoted.sender;
-        } else if (q) {
-            let number = q.replace(/[^0-9]/g, "");
-            user = number + "@s.whatsapp.net";
-        } else {
-            return reply("⚠️ Reply or give number\nExample: .unblock 2637xxxxxxx");
-        }
+    if (!isSuperUser) return reply("❌ Owner Only Command!");
 
-        await conn.updateBlockStatus(user, "unblock");
+    let targetJid;
+    let rawTarget;
 
-        await conn.sendMessage(from, {
-            text: `╭━━━〔 ⚡ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚡ 〕━━━⬣
-┃ ✅ TARGET RESTORED
-┃━━━━━━━━━━━━━━━━━━━⬣
-┃ 💬 User can now interact again
-┃
-┃ ⚡ User: wa.me/${user.split("@")[0]}
-╰━━━━━━━━━━━━━━━━━━━⬣`
-        }, { quoted: mek });
-
-    } catch (e) {
-        console.log(e);
-        reply("❌ Failed to unblock user");
+    if (quotedUser) {
+      rawTarget = quotedUser;
+    } else if (mentionedJid && mentionedJid.length > 0) {
+      rawTarget = mentionedJid[0];
+    } else if (args[0]) {
+      rawTarget = args[0];
+    } else if (!isJidGroup(from)) {
+      rawTarget = from;
     }
-});
+
+    if (!rawTarget) {
+      return reply("❌ Reply, mention or give a number!");
+    }
+
+    if (rawTarget.endsWith("@lid")) {
+      const converted = convertLidToJid(rawTarget);
+      if (converted) rawTarget = converted;
+    }
+
+    const num = rawTarget.split("@")[0].replace(/[^0-9]/g, "");
+    if (!num || num.length < 6) {
+      return reply("❌ Invalid number!");
+    }
+
+    targetJid = `${num}@s.whatsapp.net`;
+
+    // ❌ Prevent blocking yourself/admins
+    if (superUser && superUser.includes(targetJid)) {
+      await react("❌");
+      return reply("❌ Cannot block owner/sudo users!");
+    }
+
+    try {
+      await mek.updateBlockStatus(targetJid, "block");
+
+      await react("✅");
+      return reply(
+        `╭━━━〔 ⚔️ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚔️ 〕━━━⬣
+┃ 🚫 TARGET ELIMINATED
+┃━━━━━━━━━━━━━━━━━━━⬣
+┃ 🗑️ The trash has been blocked…
+┃ 🖤 Onichan~ ✨
+┃
+┃ ⚡ User: wa.me/${num}
+╰━━━━━━━━━━━━━━━━━━━⬣`,
+        { mentions: [targetJid] }
+      );
+
+    } catch (error) {
+      await react("❌");
+      return reply(`❌ Failed to block: ${error.message}`);
+    }
+  }
+);
