@@ -1,4 +1,4 @@
-import { jidNormalizedUser } from '@whiskeysockets/baileys'
+const { jidNormalizedUser } = require('@whiskeysockets/baileys')
 
 let handler = async (m, { conn, text, isOwner }) => {
     if (!isOwner) return m.reply('❌ This command is for owner only')
@@ -20,7 +20,6 @@ let handler = async (m, { conn, text, isOwner }) => {
 
         await conn.updateBlockStatus(user, "block")
 
-        // 🔥 YOUR CUSTOM STYLE
         await conn.sendMessage(m.chat, {
             text: `╭━━━〔 ⚔️ 𝕗𝕽𝕠𝕟𝕥𝕚𝕖r-MD ⚔️ 〕━━━⬣
 ┃ 🚫 *TARGET ELIMINATED*
@@ -41,4 +40,4 @@ let handler = async (m, { conn, text, isOwner }) => {
 handler.command = ['block']
 handler.owner = true
 
-export default handler
+module.exports = handler
