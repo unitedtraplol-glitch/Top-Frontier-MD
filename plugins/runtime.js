@@ -4,35 +4,35 @@ const os = require('os')
 module.exports = {
   pattern: "runtime",
   alias: ["uptime", "alive"],
-  desc: "Check bot uptime",
-  category: "general",
   react: "⚡",
 
   async function(sock, m, msg, { reply }) {
     try {
+      // 🛑 CHECK CONNECTION FIRST
+      if (!sock?.user) {
+        return reply("⚠️ Bot is still connecting, try again...")
+      }
+
       const uptime = runtime(process.uptime())
       const totalMem = (os.totalmem() / 1024 / 1024).toFixed(0)
       const freeMem = (os.freemem() / 1024 / 1024).toFixed(0)
 
       const caption = `
 ╭━━━〔 ⚡ FRONTIER MD STATUS ⚡ 〕━━━⬣
-┃ 🤖 Bot Name  : Frontier MD
 ┃ ⏳ Uptime    : ${uptime}
-┃ 💾 RAM Usage : ${freeMem}MB / ${totalMem}MB
+┃ 💾 RAM Usage : ${freeMem}/${totalMem} MB
 ┃ 📡 Status    : Online 🟢
 ╰━━━━━━━━━━━━━━━━━━━━━━⬣
-
-> 🚀 Tap below to join my WhatsApp Channel 🔥
 `
 
-      // 🔥 SEND IMAGE WITH NEWSLETTER LINK
+      // 🖼️ SEND IMAGE SAFELY
       await sock.sendMessage(m.key.remoteJid, {
         image: { url: "https://files.catbox.moe/ggcgdm.jpeg" },
         caption: caption,
         contextInfo: {
           externalAdReply: {
-            title: "🚀 Join Frontier MD Channel",
-            body: "Tap here to open WhatsApp Channel",
+            title: "Join My WhatsApp Channel 🚀",
+            body: "Tap to open channel",
             mediaType: 1,
             renderLargerThumbnail: true,
             thumbnailUrl: "https://files.catbox.moe/ggcgdm.jpeg",
@@ -41,16 +41,21 @@ module.exports = {
         }
       }, { quoted: m })
 
-      // 🎧 SEND AUDIO AFTER IMAGE
+      // ⏳ WAIT BEFORE SENDING AUDIO (VERY IMPORTANT)
+      await new Promise(res => setTimeout(res, 1500))
+
+      // 🎧 SEND AUDIO SAFELY
       await sock.sendMessage(m.key.remoteJid, {
         audio: { url: "https://files.catbox.moe/84s5w1.opus" },
         mimetype: "audio/ogg; codecs=opus",
-        ptt: true // makes it voice note style 🔥
+        ptt: true
       }, { quoted: m })
 
     } catch (err) {
-      console.log(err)
-      reply("❌ Error displaying runtime")
+      console.log("RUNTIME ERROR:", err)
+
+      // fallback (prevents crash)
+      reply("⚠️ Runtime loaded but media failed. Try again.")
     }
   }
 }
