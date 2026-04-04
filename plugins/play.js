@@ -3,7 +3,7 @@ const { cmd } = require('../command');
 const yts = require('yt-search');
 const axios = require('axios');
 
-const DL_API = 'https://api.qasimdev.dpdns.org/api/loaderto/download';
+const DL_API = 'https://meta.davidxtech.de/api/yt/play?q=';
 const API_KEY = 'xbps-install-Syu';
 
 cmd({
