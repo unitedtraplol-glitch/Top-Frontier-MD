@@ -3,8 +3,7 @@ require("dotenv").config();
 const {
   default: makeWASocket,
   DisconnectReason,
-  fetchLatestBaileysVersion,
-  BufferJSON
+  fetchLatestBaileysVersion
 } = require("@whiskeysockets/baileys");
 
 const pino = require("pino");
@@ -37,30 +36,30 @@ async function startBot() {
 
   const { version } = await fetchLatestBaileysVersion();
 
-  // 🔥 CLEAN + SUPPORT ALL SESSION TYPES
-  let cleanedSession = SESSION_ID;
+  // ================= SESSION (OLD STYLE FIX) =================
+  let session = SESSION_ID;
 
-  // remove prefix (ARSLAN-MD~ or anything~)
-  if (cleanedSession.includes("~")) {
-    cleanedSession = cleanedSession.split("~")[1];
+  // remove prefix like ARSLAN-MD~
+  if (session.includes("~")) {
+    session = session.split("~")[1];
   }
 
   let authInfo;
 
   try {
-    // try base64 decode
-    authInfo = JSON.parse(
-      Buffer.from(cleanedSession, "base64").toString("utf-8"),
-      BufferJSON.reviver
+    const decoded = JSON.parse(
+      Buffer.from(session, "base64").toString("utf-8")
     );
-  } catch {
-    try {
-      // fallback raw JSON
-      authInfo = JSON.parse(cleanedSession, BufferJSON.reviver);
-    } catch (err) {
-      console.log("❌ Invalid SESSION_ID format");
-      process.exit(1);
-    }
+
+    // force structure like old bots
+    authInfo = {
+      creds: decoded,
+      keys: {}
+    };
+
+  } catch (e) {
+    console.log("❌ Invalid SESSION_ID");
+    process.exit(1);
   }
 
   const sock = makeWASocket({
