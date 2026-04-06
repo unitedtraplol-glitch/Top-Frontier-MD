@@ -29,7 +29,6 @@ async function startBot() {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState("./sessions");
-
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
@@ -39,6 +38,14 @@ async function startBot() {
         browser: ["Frontier-MD", "Chrome", "1.0"]
     });
 
+    // ================== LOAD COMMAND SYSTEM ==================
+    const { cmd, commands } = require("./command");
+
+    fs.readdirSync("./plugins").forEach(file => {
+        require(`./plugins/${file}`);
+    });
+
+    // ================== CONNECTION ==================
     sock.ev.on("connection.update", (update) => {
         const { connection } = update;
 
@@ -54,10 +61,29 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // ================== LOAD YOUR PLUGINS ==================
-    require("./command");
-    fs.readdirSync("./plugins").forEach(file => {
-        require(`./plugins/${file}`);
+    // ================== MESSAGE HANDLER (VERY IMPORTANT) ==================
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        const m = messages[0];
+        if (!m.message) return;
+
+        const text =
+            m.message.conversation ||
+            m.message.extendedTextMessage?.text;
+
+        if (!text) return;
+
+        for (let command of commands) {
+            if (text.startsWith(command.pattern)) {
+                try {
+                    await command.function(sock, m, {
+                        text,
+                        from: m.key.remoteJid
+                    });
+                } catch (err) {
+                    console.log("❌ Command error:", err);
+                }
+            }
+        }
     });
 
 }
