@@ -1,133 +1,65 @@
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
-const pino = require("pino");
-require("dotenv").config();
+const fs = require("fs");
+const P = require("pino");
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  DisconnectReason
-} = require("@whiskeysockets/baileys");
-
-// ==========================
-// 🌍 EXPRESS SERVER
-// ==========================
+// ================== KEEP RENDER ALIVE ==================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => {
-  res.send("Frontier-MD running ✅");
-});
+app.get("/", (req, res) => res.send("Frontier-MD Running ✅"));
+app.listen(PORT, () => console.log("🌐 Server running on port " + PORT));
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running on ${PORT}`);
-});
-
-// ==========================
-// 📂 LOAD COMMAND SYSTEM
-// ==========================
-const { commands } = require("./command");
-
-// Load all plugin files
-fs.readdirSync("./plugins").forEach(file => {
-  if (file.endsWith(".js")) {
-    require(`./plugins/${file}`);
-    console.log(`✅ Loaded plugin: ${file}`);
-  }
-});
-
-// ==========================
-// 🤖 BOT START
-// ==========================
+// ================== START BOT ==================
 async function startBot() {
-  const sessionId = process.env.SESSION_ID;
 
-  if (!sessionId) {
-    console.log("❌ SESSION_ID missing");
-    return;
-  }
+    const SESSION_ID = process.env.SESSION_ID;
 
-  console.log("✅ SESSION_ID Loaded");
-
-  const sessionDir = "./session";
-  if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
-
-  const credsPath = path.join(sessionDir, "creds.json");
-
-  if (!fs.existsSync(credsPath)) {
-    const decoded = Buffer.from(sessionId, "base64").toString("utf-8");
-    fs.writeFileSync(credsPath, decoded);
-  }
-
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  const { version } = await fetchLatestBaileysVersion();
-
-  const sock = makeWASocket({
-    version,
-    logger: pino({ level: "silent" }),
-    auth: state,
-    browser: ["Frontier-MD", "Chrome", "1.0.0"]
-  });
-
-  sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect } = update;
-
-    if (connection === "open") {
-      console.log("🟢 Connected to WhatsApp");
+    if (!SESSION_ID) {
+        console.log("❌ SESSION_ID missing");
+        return;
     }
 
-    if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
+    console.log("✅ SESSION_ID Loaded");
 
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log("🔄 Reconnecting...");
-        setTimeout(startBot, 5000);
-      } else {
-        console.log("❌ Session expired");
-      }
+    // decode session
+    if (!fs.existsSync("./sessions/creds.json")) {
+        const decoded = Buffer.from(SESSION_ID, "base64").toString("utf-8");
+        fs.writeFileSync("./sessions/creds.json", decoded);
     }
-  });
 
-  sock.ev.on("creds.update", saveCreds);
+    const { state, saveCreds } = await useMultiFileAuthState("./sessions");
 
-  // ==========================
-  // 📩 MESSAGE HANDLER (REAL FIX)
-  // ==========================
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const mek = messages[0];
-    if (!mek.message) return;
+    const { version } = await fetchLatestBaileysVersion();
 
-    const m = mek;
-    const from = mek.key.remoteJid;
+    const sock = makeWASocket({
+        version,
+        logger: P({ level: "silent" }),
+        auth: state,
+        browser: ["Frontier-MD", "Chrome", "1.0"]
+    });
 
-    const msg =
-      mek.message.conversation ||
-      mek.message.extendedTextMessage?.text ||
-      "";
+    sock.ev.on("connection.update", (update) => {
+        const { connection } = update;
 
-    const args = msg.trim().split(/ +/).slice(1);
-    const command = msg.trim().split(/ +/)[0].toLowerCase();
-
-    for (let cmd of commands) {
-      if (
-        command === "." + cmd.pattern ||
-        cmd.alias?.includes(command.replace(".", ""))
-      ) {
-        try {
-          await cmd.function(sock, mek, m, {
-            from,
-            args,
-            reply: (text) => sock.sendMessage(from, { text }, { quoted: mek })
-          });
-        } catch (e) {
-          console.log("❌ Command Error:", e);
+        if (connection === "open") {
+            console.log("✅ BOT CONNECTED");
         }
-      }
-    }
-  });
+
+        if (connection === "close") {
+            console.log("🔁 Reconnecting...");
+            startBot();
+        }
+    });
+
+    sock.ev.on("creds.update", saveCreds);
+
+    // ================== LOAD YOUR PLUGINS ==================
+    require("./command");
+    fs.readdirSync("./plugins").forEach(file => {
+        require(`./plugins/${file}`);
+    });
+
 }
 
-// START
 startBot();
