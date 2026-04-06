@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
-const pino = require("pino");
 const express = require("express");
+const pino = require("pino");
+require("dotenv").config();
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -9,49 +11,57 @@ const {
   DisconnectReason
 } = require("@whiskeysockets/baileys");
 
-require("dotenv").config();
-
+// ==========================
+// 🌍 EXPRESS SERVER
+// ==========================
 const app = express();
-
-// ✅ Render port fix (IMPORTANT)
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Frontier-MD Bot is Running ✅");
+  res.send("Frontier-MD running ✅");
 });
 
-app.listen(PORT, () => {
-  console.log(`🌍 Server running on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server running on ${PORT}`);
 });
 
-// =============================
-// 🔐 SESSION LOGIN (NO QR)
-// =============================
-async function connectBot() {
+// ==========================
+// 📂 LOAD COMMAND SYSTEM
+// ==========================
+const { commands } = require("./command");
+
+// Load all plugin files
+fs.readdirSync("./plugins").forEach(file => {
+  if (file.endsWith(".js")) {
+    require(`./plugins/${file}`);
+    console.log(`✅ Loaded plugin: ${file}`);
+  }
+});
+
+// ==========================
+// 🤖 BOT START
+// ==========================
+async function startBot() {
   const sessionId = process.env.SESSION_ID;
 
   if (!sessionId) {
-    console.log("❌ SESSION_ID missing in env");
+    console.log("❌ SESSION_ID missing");
     return;
   }
 
   console.log("✅ SESSION_ID Loaded");
 
-  const sessionPath = "./session";
+  const sessionDir = "./session";
+  if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
 
-  if (!fs.existsSync(sessionPath)) {
-    fs.mkdirSync(sessionPath, { recursive: true });
-  }
-
-  // Decode session and save creds
-  const credsPath = path.join(sessionPath, "creds.json");
+  const credsPath = path.join(sessionDir, "creds.json");
 
   if (!fs.existsSync(credsPath)) {
     const decoded = Buffer.from(sessionId, "base64").toString("utf-8");
     fs.writeFileSync(credsPath, decoded);
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -61,185 +71,63 @@ async function connectBot() {
     browser: ["Frontier-MD", "Chrome", "1.0.0"]
   });
 
-  // =============================
-  // ✅ CONNECTION HANDLER
-  // =============================
-  sock.ev.on("connection.update", async (update) => {
+  sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
 
     if (connection === "open") {
-      console.log("✅ Bot Connected to WhatsApp!");
+      console.log("🟢 Connected to WhatsApp");
     }
 
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
 
-      if (reason === DisconnectReason.loggedOut) {
-        console.log("❌ Session expired. Add new SESSION_ID");
-      } else {
+      if (reason !== DisconnectReason.loggedOut) {
         console.log("🔄 Reconnecting...");
-        connectBot();
+        setTimeout(startBot, 5000);
+      } else {
+        console.log("❌ Session expired");
       }
     }
   });
 
-  // =============================
-  // 💾 SAVE CREDS
-  // =============================
   sock.ev.on("creds.update", saveCreds);
 
-  // =============================
-  // 🤖 MESSAGE HANDLER (FIXED)
-  // =============================
+  // ==========================
+  // 📩 MESSAGE HANDLER (REAL FIX)
+  // ==========================
   sock.ev.on("messages.upsert", async ({ messages }) => {
-    const m = messages[0];
-    if (!m.message) return;
+    const mek = messages[0];
+    if (!mek.message) return;
+
+    const m = mek;
+    const from = mek.key.remoteJid;
 
     const msg =
-      m.message.conversation ||
-      m.message.extendedTextMessage?.text ||
+      mek.message.conversation ||
+      mek.message.extendedTextMessage?.text ||
       "";
 
-    const from = m.key.remoteJid;
+    const args = msg.trim().split(/ +/).slice(1);
+    const command = msg.trim().split(/ +/)[0].toLowerCase();
 
-    console.log("📩 Message:", msg);
-
-    // =============================
-    // COMMANDS
-    // =============================
-    if (msg.toLowerCase() === ".ping") {
-      await sock.sendMessage(from, { text: "🏓 Pong!" }, { quoted: m });
-    }
-
-    if (msg.toLowerCase() === ".alive") {
-      await sock.sendMessage(from, {
-        text: "✅ Frontier-MD is Alive 🚀"
-      }, { quoted: m });
-    }
-  });
-}
-
-// Start bot
-connectBot();const fs = require("fs");
-const path = require("path");
-const pino = require("pino");
-const express = require("express");
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  DisconnectReason
-} = require("@whiskeysockets/baileys");
-
-require("dotenv").config();
-
-const app = express();
-
-// ✅ Render port fix (IMPORTANT)
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-  res.send("Frontier-MD Bot is Running ✅");
-});
-
-app.listen(PORT, () => {
-  console.log(`🌍 Server running on port ${PORT}`);
-});
-
-// =============================
-// 🔐 SESSION LOGIN (NO QR)
-// =============================
-async function connectBot() {
-  const sessionId = process.env.SESSION_ID;
-
-  if (!sessionId) {
-    console.log("❌ SESSION_ID missing in env");
-    return;
-  }
-
-  console.log("✅ SESSION_ID Loaded");
-
-  const sessionPath = "./session";
-
-  if (!fs.existsSync(sessionPath)) {
-    fs.mkdirSync(sessionPath, { recursive: true });
-  }
-
-  // Decode session and save creds
-  const credsPath = path.join(sessionPath, "creds.json");
-
-  if (!fs.existsSync(credsPath)) {
-    const decoded = Buffer.from(sessionId, "base64").toString("utf-8");
-    fs.writeFileSync(credsPath, decoded);
-  }
-
-  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-  const { version } = await fetchLatestBaileysVersion();
-
-  const sock = makeWASocket({
-    version,
-    logger: pino({ level: "silent" }),
-    auth: state,
-    browser: ["Frontier-MD", "Chrome", "1.0.0"]
-  });
-
-  // =============================
-  // ✅ CONNECTION HANDLER
-  // =============================
-  sock.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
-
-    if (connection === "open") {
-      console.log("✅ Bot Connected to WhatsApp!");
-    }
-
-    if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
-
-      if (reason === DisconnectReason.loggedOut) {
-        console.log("❌ Session expired. Add new SESSION_ID");
-      } else {
-        console.log("🔄 Reconnecting...");
-        connectBot();
+    for (let cmd of commands) {
+      if (
+        command === "." + cmd.pattern ||
+        cmd.alias?.includes(command.replace(".", ""))
+      ) {
+        try {
+          await cmd.function(sock, mek, m, {
+            from,
+            args,
+            reply: (text) => sock.sendMessage(from, { text }, { quoted: mek })
+          });
+        } catch (e) {
+          console.log("❌ Command Error:", e);
+        }
       }
     }
   });
-
-  // =============================
-  // 💾 SAVE CREDS
-  // =============================
-  sock.ev.on("creds.update", saveCreds);
-
-  // =============================
-  // 🤖 MESSAGE HANDLER (FIXED)
-  // =============================
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const m = messages[0];
-    if (!m.message) return;
-
-    const msg =
-      m.message.conversation ||
-      m.message.extendedTextMessage?.text ||
-      "";
-
-    const from = m.key.remoteJid;
-
-    console.log("📩 Message:", msg);
-
-    // =============================
-    // COMMANDS
-    // =============================
-    if (msg.toLowerCase() === ".ping") {
-      await sock.sendMessage(from, { text: "🏓 Pong!" }, { quoted: m });
-    }
-
-    if (msg.toLowerCase() === ".alive") {
-      await sock.sendMessage(from, {
-        text: "✅ Frontier-MD is Alive 🚀"
-      }, { quoted: m });
-    }
-  });
 }
 
-// Start bot
-connectBot();
+// START
+startBot();
