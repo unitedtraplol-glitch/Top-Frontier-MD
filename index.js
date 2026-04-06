@@ -11,11 +11,13 @@ const path = require("path");
 
 const { commands } = require("./command");
 
-// ===== LOAD COMMAND FILES =====
-function loadCommands() {
-  const pluginPath = path.join(__dirname, "./plugins");
+// ===== LOAD PLUGINS =====
+function loadPlugins() {
+  const pluginDir = path.join(__dirname, "./plugins");
 
-  fs.readdirSync(pluginPath).forEach(file => {
+  if (!fs.existsSync(pluginDir)) return;
+
+  fs.readdirSync(pluginDir).forEach(file => {
     if (file.endsWith(".js")) {
       require(`./plugins/${file}`);
       console.log("✅ Loaded:", file);
@@ -23,8 +25,26 @@ function loadCommands() {
   });
 }
 
+// ===== DECODE SESSION_ID =====
+function loadSession() {
+  if (!process.env.SESSION_ID) return;
+
+  const sessionDir = "./session";
+
+  if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir);
+  }
+
+  const decoded = Buffer.from(process.env.SESSION_ID, "base64").toString("utf-8");
+
+  fs.writeFileSync(path.join(sessionDir, "creds.json"), decoded);
+  console.log("✅ SESSION_ID Loaded");
+}
+
 // ===== START BOT =====
 async function startBot() {
+  loadSession();
+
   const { state, saveCreds } = await useMultiFileAuthState("./session");
   const { version } = await fetchLatestBaileysVersion();
 
@@ -32,8 +52,7 @@ async function startBot() {
     version,
     logger: pino({ level: "silent" }),
     auth: state,
-    printQRInTerminal: true,
-    browser: ["Frontier-MD", "Chrome", "1.0.0"]
+    browser: ["Star-XD", "Chrome", "1.0.0"]
   });
 
   // ===== CONNECTION =====
@@ -47,13 +66,13 @@ async function startBot() {
         console.log("🔁 Reconnecting...");
         startBot();
       } else {
-        console.log("❌ Logged out.");
+        console.log("❌ Session expired. Add new SESSION_ID");
       }
     }
 
     if (connection === "open") {
       console.log("✅ Bot Connected!");
-      loadCommands();
+      loadPlugins();
     }
   });
 
@@ -78,8 +97,6 @@ async function startBot() {
 
     const args = body.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-
-    console.log("📩 Command:", command);
 
     for (let cmd of commands) {
       if (!cmd.pattern) continue;
@@ -107,5 +124,4 @@ async function startBot() {
   });
 }
 
-// ===== START =====
 startBot();
