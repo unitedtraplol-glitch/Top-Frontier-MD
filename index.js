@@ -1,127 +1,123 @@
+const fs = require("fs");
+const path = require("path");
+const pino = require("pino");
+const express = require("express");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  DisconnectReason
 } = require("@whiskeysockets/baileys");
 
-const pino = require("pino");
-const fs = require("fs");
-const path = require("path");
+require("dotenv").config();
 
-const { commands } = require("./command");
+const app = express();
 
-// ===== LOAD PLUGINS =====
-function loadPlugins() {
-  const pluginDir = path.join(__dirname, "./plugins");
+// ✅ Render port fix (IMPORTANT)
+const PORT = process.env.PORT || 3000;
 
-  if (!fs.existsSync(pluginDir)) return;
+app.get("/", (req, res) => {
+  res.send("Frontier-MD Bot is Running ✅");
+});
 
-  fs.readdirSync(pluginDir).forEach(file => {
-    if (file.endsWith(".js")) {
-      require(`./plugins/${file}`);
-      console.log("✅ Loaded:", file);
-    }
-  });
-}
+app.listen(PORT, () => {
+  console.log(`🌍 Server running on port ${PORT}`);
+});
 
-// ===== DECODE SESSION_ID =====
-function loadSession() {
-  if (!process.env.SESSION_ID) return;
+// =============================
+// 🔐 SESSION LOGIN (NO QR)
+// =============================
+async function connectBot() {
+  const sessionId = process.env.SESSION_ID;
 
-  const sessionDir = "./session";
-
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir);
+  if (!sessionId) {
+    console.log("❌ SESSION_ID missing in env");
+    return;
   }
 
-  const decoded = Buffer.from(process.env.SESSION_ID, "base64").toString("utf-8");
-
-  fs.writeFileSync(path.join(sessionDir, "creds.json"), decoded);
   console.log("✅ SESSION_ID Loaded");
-}
 
-// ===== START BOT =====
-async function startBot() {
-  loadSession();
+  const sessionPath = "./session";
 
-  const { state, saveCreds } = await useMultiFileAuthState("./session");
+  if (!fs.existsSync(sessionPath)) {
+    fs.mkdirSync(sessionPath, { recursive: true });
+  }
+
+  // Decode session and save creds
+  const credsPath = path.join(sessionPath, "creds.json");
+
+  if (!fs.existsSync(credsPath)) {
+    const decoded = Buffer.from(sessionId, "base64").toString("utf-8");
+    fs.writeFileSync(credsPath, decoded);
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
     version,
     logger: pino({ level: "silent" }),
     auth: state,
-    browser: ["Star-XD", "Chrome", "1.0.0"]
+    browser: ["Frontier-MD", "Chrome", "1.0.0"]
   });
 
-  // ===== CONNECTION =====
-  sock.ev.on("connection.update", (update) => {
+  // =============================
+  // ✅ CONNECTION HANDLER
+  // =============================
+  sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
+
+    if (connection === "open") {
+      console.log("✅ Bot Connected to WhatsApp!");
+    }
 
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
 
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log("🔁 Reconnecting...");
-        startBot();
-      } else {
+      if (reason === DisconnectReason.loggedOut) {
         console.log("❌ Session expired. Add new SESSION_ID");
+      } else {
+        console.log("🔄 Reconnecting...");
+        connectBot();
       }
-    }
-
-    if (connection === "open") {
-      console.log("✅ Bot Connected!");
-      loadPlugins();
     }
   });
 
+  // =============================
+  // 💾 SAVE CREDS
+  // =============================
   sock.ev.on("creds.update", saveCreds);
 
-  // ===== MESSAGE HANDLER =====
+  // =============================
+  // 🤖 MESSAGE HANDLER (FIXED)
+  // =============================
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const m = messages[0];
     if (!m.message) return;
-    if (m.key.fromMe) return;
 
-    const from = m.key.remoteJid;
-
-    const body =
+    const msg =
       m.message.conversation ||
       m.message.extendedTextMessage?.text ||
       "";
 
-    const prefix = ".";
+    const from = m.key.remoteJid;
 
-    if (!body.startsWith(prefix)) return;
+    console.log("📩 Message:", msg);
 
-    const args = body.slice(prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+    // =============================
+    // COMMANDS
+    // =============================
+    if (msg.toLowerCase() === ".ping") {
+      await sock.sendMessage(from, { text: "🏓 Pong!" }, { quoted: m });
+    }
 
-    for (let cmd of commands) {
-      if (!cmd.pattern) continue;
-
-      const pattern = cmd.pattern.toString().replace(/[^a-zA-Z]/g, "");
-
-      if (pattern === command || cmd.alias?.includes(command)) {
-        try {
-          await cmd.function(
-            sock,
-            m,
-            {
-              from,
-              body,
-              args,
-              reply: (msg) =>
-                sock.sendMessage(from, { text: msg }, { quoted: m })
-            }
-          );
-        } catch (e) {
-          console.log("❌ Error:", e.message);
-        }
-      }
+    if (msg.toLowerCase() === ".alive") {
+      await sock.sendMessage(from, {
+        text: "✅ Frontier-MD is Alive 🚀"
+      }, { quoted: m });
     }
   });
 }
 
-startBot();
+// Start bot
+connectBot();
